@@ -13,6 +13,9 @@ import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContract;
 import androidx.health.connect.client.HealthConnectClient;
+
+import androidx.health.connect.client.HealthConnectFeatures;
+
 import androidx.health.connect.client.PermissionController;
 import androidx.health.connect.client.aggregate.AggregateMetric;
 import androidx.health.connect.client.aggregate.AggregationResult;
@@ -78,9 +81,35 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import java.util.concurrent.TimeUnit;
+
+
 import kotlin.coroutines.EmptyCoroutineContext;
 import kotlin.reflect.KClass;
+import kotlin.coroutines.Continuation;
+import kotlin.jvm.functions.Function1;
+import kotlin.coroutines.intrinsics.IntrinsicsKt;
+
+import kotlin.Unit;
+import kotlin.coroutines.CoroutineContext;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+
 import kotlinx.coroutines.BuildersKt;
+
+
+import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.PeriodicWorkRequest.Builder;
+//import androidx.work.PeriodicWorkRequestBuilder;
+import androidx.work.WorkManager;
+
+import android.content.Context;
+
+
+
+
 
 public class HealthPlugin extends CordovaPlugin {
 
@@ -206,6 +235,16 @@ public class HealthPlugin extends CordovaPlugin {
                 try {
                     connectAPI();
                     checkAuthorization(args, true);
+                } catch (Exception ex) {
+                    callbackContext.error(ex.getMessage());
+                }
+            });
+            return true;
+		} else if ("queryInBackGround".equals(action)) {
+            cordova.getThreadPool().execute(() -> {
+                try {
+                    connectAPI();
+                    queryInBackGround(args);
                 } catch (Exception ex) {
                     callbackContext.error(ex.getMessage());
                 }
@@ -438,6 +477,73 @@ public class HealthPlugin extends CordovaPlugin {
         }
         obj.put("entryMethod", method);
     }
+
+	private void queryInBackGround (final JSONArray args) {
+	
+		try {
+            if (!args.getJSONObject(0).has("startDate")) {
+                callbackContext.error("Missing argument startDate");
+                return;
+            }
+            long st = args.getJSONObject(0).getLong("startDate");
+            if (!args.getJSONObject(0).has("endDate")) {
+                callbackContext.error("Missing argument endDate");
+                return;
+            }
+            long et = args.getJSONObject(0).getLong("endDate");
+            if (!args.getJSONObject(0).has("dataType")) {
+                callbackContext.error("Missing argument dataType");
+                return;
+            }
+            String datatype = args.getJSONObject(0).getString("dataType");
+            KClass<? extends Record> dt = dataTypeNameToClass(datatype);
+            if (dt == null) {
+                callbackContext.error("Datatype " + datatype + " not supported");
+                return;
+            }
+			
+			
+			if (healthConnectClient.getFeatures().getFeatureStatus(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND)
+                == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE) {
+
+				// Check if necessary permission is granted
+				Set<String> grantedPermissions = BuildersKt.runBlocking(
+                    EmptyCoroutineContext.INSTANCE,
+                    (s, c) -> healthConnectClient.getPermissionController().getGrantedPermissions(c));
+
+					if (!grantedPermissions.contains("android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND")) {
+						// Perform read in foreground
+						callbackContext.error("Use \"query\" method for foreground request");
+						return;
+					} else {
+						// Schedule the periodic work request in background
+						PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 1, TimeUnit.HOURS)
+								.build();
+
+						WorkManager.getInstance(cordova.getContext()).enqueueUniquePeriodicWork(
+								"read_health_connect",
+								ExistingPeriodicWorkPolicy.KEEP,
+								periodicWorkRequest
+						);
+					}		
+								
+			} else {
+				// Background reading is not available, perform read in foreground
+				callbackContext.error("Use \"query\" method for foreground request");
+				return;
+			}
+			
+			
+			
+		} catch (JSONException ex) {
+            Log.e(TAG, "Could not parse query object", ex);
+            callbackContext.error("Could not parse query object");
+        } catch (InterruptedException ex2) {
+            Log.e(TAG, "Thread interrupted", ex2);
+            callbackContext.error("Thread interrupted" + ex2.getMessage());
+        }
+	
+	}
 
     private void query(final JSONArray args) {
 
