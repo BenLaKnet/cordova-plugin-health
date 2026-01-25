@@ -529,7 +529,7 @@ public class HealthPlugin extends CordovaPlugin {
 								
 			} else {
 				// Background reading is not available, perform read in foreground
-				callbackContext.error("Use \"query\" method for foreground request");
+				callbackContext.error("Your version of Android is not compatible with background data reading.");
 				return;
 			}
 			
