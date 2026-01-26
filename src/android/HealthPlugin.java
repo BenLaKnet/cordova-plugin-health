@@ -1146,7 +1146,7 @@ public class HealthPlugin extends CordovaPlugin {
                 BodyFatRecord record = new BodyFatRecord(
                         Instant.ofEpochMilli(st), null,
                         new Percentage(perc),
-                        Metadata.EMPTY);
+                        Metadata.unknownRecordingMethod());
                 data.add(record);
             } else if (datatype.equalsIgnoreCase("activity")) {
                 String activityStr = args.getJSONObject(0).getString("value");
@@ -1159,9 +1159,9 @@ public class HealthPlugin extends CordovaPlugin {
                 ExerciseSessionRecord record = new ExerciseSessionRecord(
                         Instant.ofEpochMilli(st), null,
                         Instant.ofEpochMilli(et), null,
-                        exerciseType,
-                        title, notes,
-                        Metadata.EMPTY,
+                        Metadata.unknownRecordingMethod(),
+						exerciseType,
+                        title, notes,                        
                         segments, laps);
                 data.add(record);
             } else if (datatype.equalsIgnoreCase("calories")) {
@@ -1171,7 +1171,7 @@ public class HealthPlugin extends CordovaPlugin {
                         Instant.ofEpochMilli(st), null,
                         Instant.ofEpochMilli(et), null,
                         Energy.kilocalories(kcals),
-                        Metadata.EMPTY);
+                        Metadata.unknownRecordingMethod());
                 data.add(record);
             } else if (datatype.equalsIgnoreCase("calories.active")) {
                 double kcals = args.getJSONObject(0).getDouble("value");
@@ -1180,7 +1180,7 @@ public class HealthPlugin extends CordovaPlugin {
                         Instant.ofEpochMilli(st), null,
                         Instant.ofEpochMilli(et), null,
                         Energy.kilocalories(kcals),
-                        Metadata.EMPTY);
+                        Metadata.unknownRecordingMethod());
                 data.add(record);
             } else if (datatype.equalsIgnoreCase("calories.basal")) {
                 double kcals = args.getJSONObject(0).getDouble("value");
@@ -1192,7 +1192,7 @@ public class HealthPlugin extends CordovaPlugin {
                 BasalMetabolicRateRecord record = new BasalMetabolicRateRecord(
                         Instant.ofEpochMilli(st), null,
                         pow,
-                        Metadata.EMPTY);
+                        Metadata.unknownRecordingMethod());
                 data.add(record);
             } else if (datatype.equalsIgnoreCase("blood_glucose")) {
                 JSONObject glucoseobj = args.getJSONObject(0).getJSONObject("value");
@@ -1208,7 +1208,7 @@ public class HealthPlugin extends CordovaPlugin {
                         Instant.ofEpochMilli(st), null,
                         Instant.ofEpochMilli(et), null,
                         len,
-                        Metadata.EMPTY);
+                        Metadata.unknownRecordingMethod());
 
                 data.add(record);
             } else if (datatype.equalsIgnoreCase("sleep")) {
