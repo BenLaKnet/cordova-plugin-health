@@ -102,8 +102,8 @@ import kotlinx.coroutines.BuildersKt;
 import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.PeriodicWorkRequest.Builder;
-//import androidx.work.PeriodicWorkRequestBuilder;
 import androidx.work.WorkManager;
+import androidx.work.Data;
 
 import android.content.Context;
 
@@ -486,20 +486,32 @@ public class HealthPlugin extends CordovaPlugin {
                 return;
             }
             long st = args.getJSONObject(0).getLong("startDate");
+			
             if (!args.getJSONObject(0).has("endDate")) {
                 callbackContext.error("Missing argument endDate");
                 return;
             }
             long et = args.getJSONObject(0).getLong("endDate");
+			
             if (!args.getJSONObject(0).has("dataType")) {
                 callbackContext.error("Missing argument dataType");
                 return;
             }
             String datatype = args.getJSONObject(0).getString("dataType");
             KClass<? extends Record> dt = dataTypeNameToClass(datatype);
+			
             if (dt == null) {
                 callbackContext.error("Datatype " + datatype + " not supported");
                 return;
+            }
+			
+			int limit = 1000;
+            if (args.getJSONObject(0).has("limit")) {
+                limit = args.getJSONObject(0).getInt("limit");
+            }
+            boolean ascending = false;
+            if (args.getJSONObject(0).has("ascending")) {
+                ascending = args.getJSONObject(0).getBoolean("ascending");
             }
 			
 			
@@ -516,8 +528,20 @@ public class HealthPlugin extends CordovaPlugin {
 						callbackContext.error("Use \"query\" method for foreground request");
 						return;
 					} else {
+											
+						Data inputData = new Data.Builder()
+											.putString("DATA_TYPE", dt.toString())
+											.putLong("TIME_START", st)
+											.putLong("TIME_END", et)
+											.putInt("DATA_LIMIT", limit)
+											.putBoolean("DATA_ASCENDING", ascending)
+											.build();
+						
 						// Schedule the periodic work request in background
-						PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 1, TimeUnit.HOURS)
+						//PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 1, TimeUnit.HOURS)
+						//		.build();
+						PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 15, TimeUnit.MINUTES)
+								.setInputData(inputData)
 								.build();
 
 						WorkManager.getInstance(cordova.getContext()).enqueueUniquePeriodicWork(
@@ -525,6 +549,7 @@ public class HealthPlugin extends CordovaPlugin {
 								ExistingPeriodicWorkPolicy.KEEP,
 								periodicWorkRequest
 						);
+						
 					}		
 								
 			} else {
