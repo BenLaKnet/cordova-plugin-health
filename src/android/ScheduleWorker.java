@@ -29,11 +29,12 @@ import androidx.health.connect.client.records.metadata.DataOrigin;
 
 import java.util.Collections;
 import java.util.Set;
-
+import android.util.Log;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
+import kotlin.coroutines.Continuation;
 import kotlin.coroutines.CoroutineContext;
 import kotlin.coroutines.EmptyCoroutineContext;
 import kotlin.jvm.functions.Function1;
@@ -43,6 +44,8 @@ import org.jetbrains.annotations.NotNull;
 
 
 public class ScheduleWorker extends ListenableWorker {
+
+	private static final String TAG = "ScheduleWorker";
 
     public ScheduleWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -64,6 +67,7 @@ public class ScheduleWorker extends ListenableWorker {
 				int limit = getInputData().getInt("DATA_LIMIT", 1000);
 				boolean ascending = getInputData().getBoolean("DATA_ASCENDING", false);
 				
+				Log.d(TAG, "Type de données : " + datatype);
 				
                 // Créer le client HealthConnect
                 HealthConnectClient healthConnectClient = HealthConnectClient.getOrCreate(getApplicationContext());
@@ -74,22 +78,24 @@ public class ScheduleWorker extends ListenableWorker {
 
                 // Vérifier que datatype est valide
                 KClass<? extends Record> type;
-                if ("BloodGlucoseRecord".equals(datatype)) {
+				
+                if ("BloodGlucoseRecord.class".equals(datatype)) {
                     type = JvmClassMappingKt.getKotlinClass(BloodGlucoseRecord.class);
-                } else if ("HeartRateRecord".equals(datatype)) {
+				} else if ("HeartRateRecord.class".equals(datatype)) {
                     type = JvmClassMappingKt.getKotlinClass(HeartRateRecord.class);
-                } else {
+				} else {
+					Log.e(TAG, "Type de données non reconnu : " + datatype);
                     future.set(Result.failure());
                     return;
                 }
 
+
                 // Initialiser le pageToken
                 String pageToken = null;
 
-                // Fonction récursive pour paginer les résultats
+				// Fonction récursive pour paginer les résultats
                 fetchRecordsPage(healthConnectClient, type, startTime, endTime, ascending, limit, pageToken, future);
 				
-				callbackContext.error("Alors...");
 				
             } catch (Exception e) {
                 future.set(Result.failure());
@@ -107,8 +113,7 @@ public class ScheduleWorker extends ListenableWorker {
 		boolean ascending,
 		int limit,
 		String pageToken,
-		ResolvableFuture<Result> future,
-		Class<T> recordClass) {
+		ResolvableFuture<Result> future) {
 
 		try {
 			// Créer un ensemble vide de DataOrigin
@@ -127,12 +132,12 @@ public class ScheduleWorker extends ListenableWorker {
 			// Créer une Continuation pour gérer le résultat
 			healthConnectClient.readRecords(request, new Continuation<ReadRecordsResponse<T>>() {
 				@NotNull
-				//@Override
+				@Override
 				public CoroutineContext getContext() {
 					return EmptyCoroutineContext.INSTANCE;
 				}
 
-				//@Override
+				@Override
 				public void resumeWith(@NotNull Object result) {
 					try {
 						if (result instanceof com.google.common.util.concurrent.ListenableFuture) {
@@ -143,6 +148,10 @@ public class ScheduleWorker extends ListenableWorker {
 								@Override
 								public void onSuccess(ReadRecordsResponse<T> response) {
 									List<T> records = response.getRecords();
+									
+									
+									
+									
 									String nextPageToken = response.getPageToken();
 
 									if (nextPageToken == null) {
@@ -156,8 +165,7 @@ public class ScheduleWorker extends ListenableWorker {
 											ascending,
 											limit,
 											nextPageToken,
-											future,
-											recordClass
+											future
 										);
 									}
 								}
