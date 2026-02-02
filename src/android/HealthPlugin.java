@@ -517,44 +517,46 @@ public class HealthPlugin extends CordovaPlugin {
 			
 			if (healthConnectClient.getFeatures().getFeatureStatus(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND)
                 == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE) {
-
+				
 				// Check if necessary permission is granted
 				Set<String> grantedPermissions = BuildersKt.runBlocking(
                     EmptyCoroutineContext.INSTANCE,
                     (s, c) -> healthConnectClient.getPermissionController().getGrantedPermissions(c));
 
-					if (!grantedPermissions.contains("android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND")) {
-						// Perform read in foreground
-						callbackContext.error("Use \"query\" method for foreground request");
-						return;
-					} else {
-											
-						Data inputData = new Data.Builder()
-											.putString("DATA_TYPE", dt.toString())
-											.putLong("TIME_START", st)
-											.putLong("TIME_END", et)
-											.putInt("DATA_LIMIT", limit)
-											.putBoolean("DATA_ASCENDING", ascending)
-											.build();
-						
-						// Schedule the periodic work request in background
-						//PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 1, TimeUnit.HOURS)
-						//		.build();
-						PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 15, TimeUnit.MINUTES)
-								.setInputData(inputData)
-								.build();
-
-						WorkManager.getInstance(cordova.getContext()).enqueueUniquePeriodicWork(
-								"read_health_connect",
-								ExistingPeriodicWorkPolicy.KEEP,
-								periodicWorkRequest
-						);
-						
-					}		
+				if (!grantedPermissions.contains("android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND")) {
+					// Perform read in foreground
+					callbackContext.error("You do not authorize background request");
+					return;
+				} else {
+					
+					//Log.d(TAG, "dt: " + dt.getClass().getName());
+					
+					Data inputData = new Data.Builder()
+										.putString("DATA_TYPE", dt.toString())
+										.putLong("TIME_START", st)
+										.putLong("TIME_END", et)
+										.putInt("DATA_LIMIT", limit)
+										.putBoolean("DATA_ASCENDING", ascending)
+										.build();
+					
+					// Schedule the periodic work request in background
+					PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 15, TimeUnit.MINUTES)
+							.setInputData(inputData)
+							.build();
+					
+					WorkManager.getInstance(cordova.getContext()).enqueueUniquePeriodicWork(
+							"read_health_connect",
+							ExistingPeriodicWorkPolicy.KEEP,
+							periodicWorkRequest
+					);
+					
+					Log.d(TAG, "Data queryInBackGround successful");
+					
+				}		
 								
 			} else {
 				// Background reading is not available, perform read in foreground
-				callbackContext.error("Your version of Android is not compatible with background data reading.");
+				callbackContext.error("Your version of Android does not support background data reading.");
 				return;
 			}
 			
