@@ -28,6 +28,10 @@ module.exports = {
   requestAuthorization (authObj, onSuccess, onError) {
     exec(onSuccess, onError, "health", "requestAuthorization", [authObj])
   },
+  
+  stopBackGround (opts, onSuccess, onError) {
+    exec(onSuccess, onError, "health", "stopBackGround", [opts]);
+  },
 
   queryInBackGround (opts, onSuccess, onError) {
     if (opts.startDate && (typeof opts.startDate == 'object'))
