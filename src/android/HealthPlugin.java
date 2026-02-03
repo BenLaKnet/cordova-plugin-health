@@ -240,6 +240,16 @@ public class HealthPlugin extends CordovaPlugin {
                 }
             });
             return true;
+		} else if ("stopBackGround".equals(action)) {
+            cordova.getThreadPool().execute(() -> {
+                try {
+                    connectAPI();
+                    stopBackGround(args);
+                } catch (Exception ex) {
+                    callbackContext.error(ex.getMessage());
+                }
+            });
+            return true;
 		} else if ("queryInBackGround".equals(action)) {
             cordova.getThreadPool().execute(() -> {
                 try {
@@ -477,6 +487,22 @@ public class HealthPlugin extends CordovaPlugin {
         }
         obj.put("entryMethod", method);
     }
+	
+	private void stopBackGround (final JSONArray args) {
+		try {
+			
+			Log.d(TAG, "stopBackGround called");
+			WorkManager.getInstance(cordova.getContext()).cancelUniqueWork("read_health_connect");
+
+		} catch (JSONException ex) {
+            Log.e(TAG, "Could not parse query object", ex);
+            callbackContext.error("Could not parse query object");
+        } catch (InterruptedException ex2) {
+            Log.e(TAG, "Thread interrupted", ex2);
+            callbackContext.error("Thread interrupted" + ex2.getMessage());
+        }
+
+	}
 
 	private void queryInBackGround (final JSONArray args) {
 	

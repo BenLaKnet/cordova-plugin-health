@@ -43,6 +43,10 @@ import kotlin.Unit;
 
 import org.jetbrains.annotations.NotNull;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 
 public class ScheduleWorker extends ListenableWorker {
 
@@ -76,7 +80,9 @@ public class ScheduleWorker extends ListenableWorker {
                 // Définir la plage de temps
                 Instant startTime = Instant.ofEpochMilli(timeStart);
                 Instant endTime = Instant.ofEpochMilli(timeEnd);
-
+				
+				Log.d(TAG, "SW : startTime: " + startTime.toString());
+				
                 // Vérifier que dataType est valide
                 KClass<? extends Record> type;
 				
@@ -193,16 +199,23 @@ public class ScheduleWorker extends ListenableWorker {
 							ReadRecordsResponse<T> response = (ReadRecordsResponse<T>) result;
 							List<T> records = response.getRecords();
 	
-							Log.d(TAG, "SW: Par la 4 records...");
+							Log.d(TAG, "SW: Par la 4 records... " + records.size());
 							
 							for (T record : records) {
 								Log.d(TAG, "Record: " + record.toString());
+								
+								JSONObject obj = new JSONObject();
 								
 								if (record instanceof BloodGlucoseRecord) {
 									
 									Log.d(TAG, "SW: Par la 4 records BloodGlucoseRecord...");
 									
 								}
+								else if (record instanceof HeartRateRecord) {
+									
+									Log.d(TAG, "SW: Par la 4 records HeartRateRecord...");
+									
+								}								
 								else {
 									
 									Log.e(TAG, "SW: Record inattendu : " + record.getClass().getName());
