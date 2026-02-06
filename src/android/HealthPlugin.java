@@ -515,6 +515,7 @@ public class HealthPlugin extends CordovaPlugin {
 			
 			Log.d(TAG, "stopBackGround called");
 			WorkManager.getInstance(cordova.getContext()).cancelUniqueWork(uniqueWorkInBackGround);
+			cleanup();			
 
 		} catch (Exception ex) {
             Log.e(TAG, "stopBackGround is not possible", ex);
@@ -633,8 +634,6 @@ public class HealthPlugin extends CordovaPlugin {
 	private void initBroadcastReceiver() {
 		
 		try {
-			Log.d(TAG, "Avant new");
-			
 			receiver = new BroadcastReceiver() {
 				@Override
 				public void onReceive(Context context, Intent intent) {
@@ -657,8 +656,6 @@ public class HealthPlugin extends CordovaPlugin {
 				}
 			};
 			
-			Log.d(TAG, "Après new");
-
 			if (cordova.getActivity() != null) {
 				LocalBroadcastManager.getInstance(cordova.getActivity().getApplicationContext())
 					.registerReceiver(receiver, new IntentFilter("cordova-plugin-health.SW_WORK_COMPLETE"));
@@ -684,9 +681,9 @@ public class HealthPlugin extends CordovaPlugin {
 				.unregisterReceiver(receiver);
 			
 			receiver = null;
-			Log.d(TAG, "cleanup: dans if");
-		}
-		Log.d(TAG, "cleanup: fini");
+		
+			Log.d(TAG, "cleanup: fini");
+		}		
 	}
 
     private void query(final JSONArray args) {
