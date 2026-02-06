@@ -5,6 +5,7 @@ import android.content.Context;
 import androidx.annotation.NonNull;
 import androidx.work.ListenableWorker;
 import androidx.work.WorkerParameters;
+import androidx.work.Data;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -25,6 +26,8 @@ import kotlin.jvm.JvmClassMappingKt;
 import androidx.concurrent.futures.ResolvableFuture;
 
 import androidx.health.connect.client.records.metadata.DataOrigin;
+import androidx.health.connect.client.records.metadata.Device;
+import androidx.health.connect.client.records.metadata.Metadata;
 
 import java.util.Collections;
 import java.util.Set;
@@ -46,6 +49,10 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import android.content.Intent;
+import android.content.IntentFilter;
 
 
 public class ScheduleWorker extends ListenableWorker {
@@ -72,26 +79,22 @@ public class ScheduleWorker extends ListenableWorker {
 				int limit = getInputData().getInt("DATA_LIMIT", 1000);
 				boolean ascending = getInputData().getBoolean("DATA_ASCENDING", false);
 				
-				//Log.d(TAG, "SW : KClass String dataType: " + dataType);
-				
-                // Créer le client HealthConnect
+				// Créer le client HealthConnect
                 HealthConnectClient healthConnectClient = HealthConnectClient.getOrCreate(getApplicationContext());
 
                 // Définir la plage de temps
                 Instant startTime = Instant.ofEpochMilli(timeStart);
                 Instant endTime = Instant.ofEpochMilli(timeEnd);
 				
-				Log.d(TAG, "SW : startTime: " + startTime.toString());
+				//Log.d(TAG, "SW: startTime: " + startTime.toString() + " endTime: " + endTime.toString());
 				
                 // Vérifier que dataType est valide
                 KClass<? extends Record> type;
 				
                 if (dataType.contains("BloodGlucoseRecord")) {
                     type = JvmClassMappingKt.getKotlinClass(BloodGlucoseRecord.class);
-				} else if (dataType.contains("HeartRateRecord")) {
-                    type = JvmClassMappingKt.getKotlinClass(HeartRateRecord.class);
 				} else {
-					Log.e(TAG, "Type de données non reconnu : " + dataType);
+					Log.e(TAG, "dataType not supported: " + dataType);
                     future.set(Result.failure());
                     return;
                 }
@@ -126,8 +129,6 @@ public class ScheduleWorker extends ListenableWorker {
 			// Créer un ensemble vide de DataOrigin
 			Set<DataOrigin> dataOrigins = Collections.emptySet();
 			
-			Log.d(TAG, "SW: Par la 1...");
-			
 			// Construire la requête en utilisant le type explicitement
 			ReadRecordsRequest<T> request = new ReadRecordsRequest<>(
 				type,
@@ -137,8 +138,6 @@ public class ScheduleWorker extends ListenableWorker {
 				limit,  // pageSize
 				pageToken
 			);
-			
-			Log.d(TAG, "SW: Par la 2...");
 			
 			// Créer une Continuation pour gérer le résultat
 			healthConnectClient.readRecords(request, new Continuation<ReadRecordsResponse<T>>() {
@@ -151,86 +150,75 @@ public class ScheduleWorker extends ListenableWorker {
 				@Override
 				public void resumeWith(@NotNull Object result) {
 					try {
-						//if (result instanceof com.google.common.util.concurrent.ListenableFuture) {
-						if (result instanceof ListenableFuture) {
-							ListenableFuture<ReadRecordsResponse<T>> responseFuture = (ListenableFuture<ReadRecordsResponse<T>>) result;
-							
-							Log.d(TAG, "SW: Par la 3...");
-							
-							Futures.addCallback(responseFuture, new FutureCallback<ReadRecordsResponse<T>>() {
-								@Override
-								public void onSuccess(ReadRecordsResponse<T> response) {
-									List<T> records = response.getRecords();
-									
-									Log.d(TAG, "SW: Par la 3 records...");
-			
-									
-									
-									String nextPageToken = response.getPageToken();
-
-									if (nextPageToken == null) {
-										Log.d(TAG, "SW: Success, on a fini...");
-										future.set(Result.success());
-									} else {
-										fetchRecordsPage(
-											healthConnectClient,
-											type,
-											startTime,
-											endTime,
-											ascending,
-											limit,
-											nextPageToken,
-											future
-										);
-									}
-								}
-
-								@Override
-								public void onFailure(Throwable t) {
-									Log.e(TAG, "SW: onFailure problem: ", t);
-									future.set(Result.failure());
-								}
-							}, MoreExecutors.directExecutor());
-							
-						} else if (result instanceof ReadRecordsResponse) {
-							
-							Log.d(TAG, "SW: Par la 4...");
+						if (result instanceof ReadRecordsResponse) {
 							
 							ReadRecordsResponse<T> response = (ReadRecordsResponse<T>) result;
 							List<T> records = response.getRecords();
 	
-							Log.d(TAG, "SW: Par la 4 records... " + records.size());
+							Log.d(TAG, "SW: records size " + records.size());
+							
+							JSONArray resultset = new JSONArray();
 							
 							for (T record : records) {
-								Log.d(TAG, "Record: " + record.toString());
+								//Log.d(TAG, "Record: " + record.toString());
 								
 								JSONObject obj = new JSONObject();
 								
+								populateFromMeta(obj, record.getMetadata());
+								
 								if (record instanceof BloodGlucoseRecord) {
 									
-									Log.d(TAG, "SW: Par la 4 records BloodGlucoseRecord...");
-									
-								}
-								else if (record instanceof HeartRateRecord) {
-									
-									Log.d(TAG, "SW: Par la 4 records HeartRateRecord...");
-									
+									BloodGlucoseFunctions.populateFromQuery(record, obj);
+									//Log.d(TAG, "SW: obj size " + obj.length());
+																		
 								}								
 								else {
 									
-									Log.e(TAG, "SW: Record inattendu : " + record.getClass().getName());
+									Log.e(TAG, "SW: Record not supported : " + record.getClass().getName());
 									future.set(Result.failure());
 									
 								}
+								
+								resultset.put(obj);
+							
 							}
 							
+							
 							String nextPageToken = response.getPageToken();
-
+							//Log.d(TAG, "SW: nextPageToken: " + nextPageToken);
+							
+							
 							if (nextPageToken == null) {
-								Log.d(TAG, "Traitement terminé avec succès (réponse directe).");
-								future.set(Result.success());
+								
+								//Log.d(TAG, "SW: resultset " + resultset.toString());
+								
+								
+								String jsonString = resultset.toString();
+								
+								
+								Data outputData = new Data.Builder()
+									.putString("json_result", jsonString)
+									.build();
+								
+								
+								// Envoi des résultats via Broadcast
+								/* Context context = getApplicationContext();
+								Intent intent = new Intent("cordova-plugin-health.SW_WORK_COMPLETE");
+								intent.putExtra("json_result", jsonString);
+								context.getApplicationContext().sendBroadcast(intent); */
+								
+								Context context = getApplicationContext();
+								Intent intent = new Intent("cordova-plugin-health.SW_WORK_COMPLETE");
+								intent.putExtra("json_result", jsonString);
+								// Utilisez LocalBroadcastManager pour envoyer l'intent
+								LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
+								
+								//Log.d(TAG, "SW: Avant future.set(Result.success)");
+								future.set(Result.success(outputData));
+								Log.d(TAG, "SW: Après future.set(Result.success)");
+								
 							} else {
-								Log.d(TAG, "Récupération de la page suivante (réponse directe)...");
+								
 								fetchRecordsPage(
 									healthConnectClient,
 									type,
@@ -241,10 +229,11 @@ public class ScheduleWorker extends ListenableWorker {
 									nextPageToken,
 									future
 								);
+								
 							}
 							
 						} else {
-							Log.e(TAG, "SW: Résultat inattendu : " + result.getClass().getName());
+							Log.e(TAG, "SW: Unexpected result: " + result.getClass().getName());
 							future.set(Result.failure());
 						}
 					} catch (Exception e) {
@@ -258,4 +247,40 @@ public class ScheduleWorker extends ListenableWorker {
 			future.set(Result.failure());
 		}
 	}
+	
+	protected static void populateFromMeta(JSONObject obj, Metadata meta) throws JSONException {
+        String id = meta.getId();
+        if (id != null) {
+            obj.put("id", id);
+        }
+
+        Device dev = meta.getDevice();
+        if (dev != null) {
+            String manufacturer = dev.getManufacturer();
+            String model = dev.getModel();
+            if (manufacturer != null || model != null) {
+                obj.put("sourceDevice", manufacturer + " " + model);
+            }
+        }
+
+        DataOrigin origin = meta.getDataOrigin();
+        if (origin != null) {
+            obj.put("sourceBundleId", origin.getPackageName());
+        }
+
+        int methodInt = meta.getRecordingMethod();
+        String method = "unknown";
+        switch (methodInt) {
+            case 1:
+                method = "actively_recorded";
+                break;
+            case 2:
+                method = "automatically_recorded";
+                break;
+            case 3:
+                method = "manual_entry";
+                break;
+        }
+        obj.put("entryMethod", method);
+    }
 }

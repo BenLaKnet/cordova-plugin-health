@@ -100,15 +100,29 @@ import kotlinx.coroutines.BuildersKt;
 
 
 import androidx.work.ExistingPeriodicWorkPolicy;
-import androidx.work.PeriodicWorkRequest;
-import androidx.work.PeriodicWorkRequest.Builder;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.OneTimeWorkRequest.Builder;
 import androidx.work.WorkManager;
 import androidx.work.Data;
+
+import androidx.work.Constraints;
+import androidx.work.NetworkType;
+
+import androidx.work.WorkInfo;
+import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+
+import android.os.Handler;
+import android.os.Looper;
 
 import android.content.Context;
 
 
-
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
+import android.content.IntentFilter;
 
 
 public class HealthPlugin extends CordovaPlugin {
@@ -117,8 +131,16 @@ public class HealthPlugin extends CordovaPlugin {
      * Tag used in logs
      */
     public static String TAG = "cordova-plugin-health";
+	
+	/**
+     * uniqueWork used in BackGroundMode
+     */
+    public static String uniqueWorkInBackGround = "read_health_connect";
 
-    /**
+	// Déclarer le BroadcastReceiver comme variable de classe
+	private BroadcastReceiver receiver;
+
+	 /**
      * Callback context, reference needed when used in functions initialized before
      * the plugin is called
      */
@@ -492,16 +514,12 @@ public class HealthPlugin extends CordovaPlugin {
 		try {
 			
 			Log.d(TAG, "stopBackGround called");
-			WorkManager.getInstance(cordova.getContext()).cancelUniqueWork("read_health_connect");
+			WorkManager.getInstance(cordova.getContext()).cancelUniqueWork(uniqueWorkInBackGround);
 
-		} catch (JSONException ex) {
-            Log.e(TAG, "Could not parse query object", ex);
-            callbackContext.error("Could not parse query object");
-        } catch (InterruptedException ex2) {
-            Log.e(TAG, "Thread interrupted", ex2);
-            callbackContext.error("Thread interrupted" + ex2.getMessage());
+		} catch (Exception ex) {
+            Log.e(TAG, "stopBackGround is not possible", ex);
+            callbackContext.error("stopBackGround is not possible");
         }
-
 	}
 
 	private void queryInBackGround (final JSONArray args) {
@@ -555,8 +573,20 @@ public class HealthPlugin extends CordovaPlugin {
 					return;
 				} else {
 					
-					//Log.d(TAG, "dt: " + dt.getClass().getName());
+					Log.d(TAG, "Data queryInBackGround successful");
 					
+					initBroadcastReceiver(); // Enregistrer le BroadcastReceiver
+					
+					Log.d(TAG, "Après initBroadcastReceiver");
+					
+					
+					Constraints constraints = new Constraints.Builder()
+						.setRequiredNetworkType(NetworkType.NOT_REQUIRED) // Pas besoin de réseau
+						.setRequiresBatteryNotLow(false) // Pas besoin que la batterie soit suffisante
+						.setRequiresStorageNotLow(false) // Pas besoin que l'espace de stockage soit suffisant
+						.setRequiresCharging(false) // Pas besoin que l'appareil soit en charge
+						.build();
+
 					Data inputData = new Data.Builder()
 										.putString("DATA_TYPE", dt.toString())
 										.putLong("TIME_START", st)
@@ -564,20 +594,20 @@ public class HealthPlugin extends CordovaPlugin {
 										.putInt("DATA_LIMIT", limit)
 										.putBoolean("DATA_ASCENDING", ascending)
 										.build();
+										
 					
-					// Schedule the periodic work request in background
-					PeriodicWorkRequest periodicWorkRequest = new PeriodicWorkRequest.Builder(ScheduleWorker.class, 15, TimeUnit.MINUTES)
-							.setInputData(inputData)
-							.build();
 					
-					WorkManager.getInstance(cordova.getContext()).enqueueUniquePeriodicWork(
-							"read_health_connect",
-							ExistingPeriodicWorkPolicy.KEEP,
-							periodicWorkRequest
-					);
+					// Création d'un OneTimeWorkRequest
+					OneTimeWorkRequest oneTimeWorkRequest = new OneTimeWorkRequest.Builder(ScheduleWorker.class)
+						.setConstraints(constraints)
+						.setInputData(inputData)
+						.build();
+
+					// Planification du Worker
+					WorkManager.getInstance(cordova.getContext().getApplicationContext())
+						.enqueue(oneTimeWorkRequest); // Pas besoin de tag ou de politique pour un OneTimeWorkRequest
 					
-					Log.d(TAG, "Data queryInBackGround successful");
-					
+						
 				}		
 								
 			} else {
@@ -596,6 +626,67 @@ public class HealthPlugin extends CordovaPlugin {
             callbackContext.error("Thread interrupted" + ex2.getMessage());
         }
 	
+	}
+	
+	
+	// Méthode pour initialiser le BroadcastReceiver
+	private void initBroadcastReceiver() {
+		
+		try {
+			Log.d(TAG, "Avant new");
+			
+			receiver = new BroadcastReceiver() {
+				@Override
+				public void onReceive(Context context, Intent intent) {
+					String jsonResult = intent.getStringExtra("json_result");
+					if (jsonResult != "") {
+						try {
+							JSONArray resultset = new JSONArray(jsonResult);
+							Log.d(TAG, "JSON Reçu : " + jsonResult);
+							callbackContext.success(resultset);					
+						} catch (JSONException e) {
+							Log.e(TAG, "Erreur de parsing JSON", e);
+							callbackContext.error("Erreur de parsing JSON : " + e.getMessage());
+						} finally {
+							cleanup(); // Nettoyage après traitement
+						}
+					}
+					else {
+						Log.d(TAG, "JSON Reçu, aucun résultat");
+					}
+				}
+			};
+			
+			Log.d(TAG, "Après new");
+
+			if (cordova.getActivity() != null) {
+				LocalBroadcastManager.getInstance(cordova.getActivity().getApplicationContext())
+					.registerReceiver(receiver, new IntentFilter("cordova-plugin-health.SW_WORK_COMPLETE"));
+			} else {
+				Log.e(TAG, "Aucune activité disponible pour enregistrer le BroadcastReceiver");
+			}
+				
+		
+		} catch (Exception e) {
+			cleanup();
+			Log.e(TAG, "Erreur: ", e);
+			callbackContext.error("Erreur: " + e.getMessage());
+		}
+		
+		Log.d(TAG, "Fini");
+	}
+
+	// Méthode pour nettoyer (à appeler quand nécessaire)
+	private void cleanup() {
+		if (receiver != null) {
+			
+			LocalBroadcastManager.getInstance(cordova.getActivity().getApplicationContext())
+				.unregisterReceiver(receiver);
+			
+			receiver = null;
+			Log.d(TAG, "cleanup: dans if");
+		}
+		Log.d(TAG, "cleanup: fini");
 	}
 
     private void query(final JSONArray args) {
