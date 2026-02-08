@@ -155,7 +155,7 @@ public class ScheduleWorker extends ListenableWorker {
 							ReadRecordsResponse<T> response = (ReadRecordsResponse<T>) result;
 							List<T> records = response.getRecords();
 	
-							Log.d(TAG, "SW: records size " + records.size());
+							//Log.d(TAG, "SW: records size " + records.size());
 							
 							JSONArray resultset = new JSONArray();
 							
@@ -183,39 +183,19 @@ public class ScheduleWorker extends ListenableWorker {
 							
 							}
 							
-							
 							String nextPageToken = response.getPageToken();
-							//Log.d(TAG, "SW: nextPageToken: " + nextPageToken);
-							
-							
+														
 							if (nextPageToken == null) {
 								
-								//Log.d(TAG, "SW: resultset " + resultset.toString());
-								
-								
 								String jsonString = resultset.toString();
-								
-								
-								Data outputData = new Data.Builder()
-									.putString("json_result", jsonString)
-									.build();
-								
-								
-								// Envoi des résultats via Broadcast
-								/* Context context = getApplicationContext();
-								Intent intent = new Intent("cordova-plugin-health.SW_WORK_COMPLETE");
-								intent.putExtra("json_result", jsonString);
-								context.getApplicationContext().sendBroadcast(intent); */
 								
 								Context context = getApplicationContext();
 								Intent intent = new Intent("cordova-plugin-health.SW_WORK_COMPLETE");
 								intent.putExtra("json_result", jsonString);
-								// Utilisez LocalBroadcastManager pour envoyer l'intent
 								LocalBroadcastManager.getInstance(context).sendBroadcast(intent);
 								
-								//Log.d(TAG, "SW: Avant future.set(Result.success)");
-								future.set(Result.success(outputData));
-								Log.d(TAG, "SW: Après future.set(Result.success)");
+								future.set(Result.success());
+								//Log.d(TAG, "SW: After future.set(Result.success), records size: " + records.size());
 								
 							} else {
 								

@@ -578,7 +578,7 @@ public class HealthPlugin extends CordovaPlugin {
 					
 					initBroadcastReceiver(); // Enregistrer le BroadcastReceiver
 					
-					Log.d(TAG, "Après initBroadcastReceiver");
+					//Log.d(TAG, "Après initBroadcastReceiver");
 					
 					
 					Constraints constraints = new Constraints.Builder()
@@ -641,16 +641,17 @@ public class HealthPlugin extends CordovaPlugin {
 					if (jsonResult != "") {
 						try {
 							JSONArray resultset = new JSONArray(jsonResult);
-							Log.d(TAG, "JSON Reçu : " + jsonResult);
+							Log.d(TAG, "JSON Reçu, taille : " + resultset.length());
 							callbackContext.success(resultset);					
 						} catch (JSONException e) {
-							Log.e(TAG, "Erreur de parsing JSON", e);
+							Log.e(TAG, "Erreur de parsing JSON : ", e);
 							callbackContext.error("Erreur de parsing JSON : " + e.getMessage());
 						} finally {
 							cleanup(); // Nettoyage après traitement
 						}
 					}
 					else {
+						callbackContext.success();
 						Log.d(TAG, "JSON Reçu, aucun résultat");
 					}
 				}
@@ -669,8 +670,7 @@ public class HealthPlugin extends CordovaPlugin {
 			Log.e(TAG, "Erreur: ", e);
 			callbackContext.error("Erreur: " + e.getMessage());
 		}
-		
-		Log.d(TAG, "Fini");
+
 	}
 
 	// Méthode pour nettoyer (à appeler quand nécessaire)
@@ -681,8 +681,7 @@ public class HealthPlugin extends CordovaPlugin {
 				.unregisterReceiver(receiver);
 			
 			receiver = null;
-		
-			Log.d(TAG, "cleanup: fini");
+			
 		}		
 	}
 
