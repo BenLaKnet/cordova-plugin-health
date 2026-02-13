@@ -653,6 +653,7 @@ public class HealthPlugin extends CordovaPlugin {
 					else {
 						callbackContext.success();
 						Log.d(TAG, "JSON Reçu, aucun résultat");
+						cleanup();
 					}
 				}
 			};
