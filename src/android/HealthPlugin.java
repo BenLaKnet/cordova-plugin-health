@@ -132,11 +132,6 @@ public class HealthPlugin extends CordovaPlugin {
      */
     public static String TAG = "cordova-plugin-health";
 	
-	/**
-     * uniqueWork used in BackGroundMode
-     */
-    public static String uniqueWorkInBackGround = "read_health_connect";
-
 	// Déclarer le BroadcastReceiver comme variable de classe
 	private BroadcastReceiver receiver;
 
@@ -512,10 +507,9 @@ public class HealthPlugin extends CordovaPlugin {
 	
 	private void stopBackGround (final JSONArray args) {
 		try {
-			
+
 			Log.d(TAG, "stopBackGround called");
-			WorkManager.getInstance(cordova.getContext()).cancelUniqueWork(uniqueWorkInBackGround);
-			cleanup();			
+			cleanup();	
 
 		} catch (Exception ex) {
             Log.e(TAG, "stopBackGround is not possible", ex);

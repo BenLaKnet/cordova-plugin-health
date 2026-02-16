@@ -93,8 +93,10 @@ public class ScheduleWorker extends ListenableWorker {
 				
                 if (dataType.contains("BloodGlucoseRecord")) {
                     type = JvmClassMappingKt.getKotlinClass(BloodGlucoseRecord.class);
+				} else if (dataType.contains("HeartRateRecord")) {
+                    type = JvmClassMappingKt.getKotlinClass(HeartRateRecord.class);
 				} else {
-					Log.e(TAG, "dataType not supported: " + dataType);
+					Log.e(TAG, "SW : dataType not supported: " + dataType);
                     future.set(Result.failure());
                     return;
                 }
@@ -158,6 +160,9 @@ public class ScheduleWorker extends ListenableWorker {
 							//Log.d(TAG, "SW: records size " + records.size());
 							
 							JSONArray resultset = new JSONArray();
+							// default behaviour is that each record corresponds to one element in the
+							// array, but there can be exceptions
+							boolean oneElementPerRecord = true;
 							
 							for (T record : records) {
 								//Log.d(TAG, "Record: " + record.toString());
@@ -172,6 +177,13 @@ public class ScheduleWorker extends ListenableWorker {
 									//Log.d(TAG, "SW: obj size " + obj.length());
 																		
 								}								
+								else if (record instanceof HeartRateRecord) {
+									
+									oneElementPerRecord = false;
+									HeartRateFunctions.populateFromQuery(record, resultset);
+									//Log.d(TAG, "SW: obj size " + obj.length());
+																		
+								}								
 								else {
 									
 									Log.e(TAG, "SW: Record not supported : " + record.getClass().getName());
@@ -179,7 +191,10 @@ public class ScheduleWorker extends ListenableWorker {
 									
 								}
 								
-								resultset.put(obj);
+								// add to result array
+								if (oneElementPerRecord) {
+									resultset.put(obj);
+								}
 							
 							}
 							
